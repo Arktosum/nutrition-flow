@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'profile_screen.dart';
-
+import 'dashboard_screen.dart';
 void main() {
   runApp(const ProviderScope(child: NutritionFlowApp()));
 }
@@ -55,19 +55,14 @@ class MainNavigationShell extends ConsumerWidget {
     final currentIndex = ref.watch(bottomNavIndexProvider);
 
     final screens = [
-      const Center(
-        child: Text(
-          'Dashboard Engine\n(Progress Rings Go Here)',
-          textAlign: TextAlign.center,
-        ),
-      ),
+      const DashboardScreen(),
       const Center(
         child: Text(
           'Logging Hub\n(Quick Add Buttons Go Here)',
           textAlign: TextAlign.center,
         ),
       ),
-      const ProfileScreen()
+      const ProfileScreen(),
     ];
 
     return Scaffold(

@@ -3,13 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:math';
 
 // --- 1. The State Model & Math Engine ---
-// (Unchanged from before)
 class ProfileState {
   final int age;
   final double height;
   final double weight;
   final String gender;
   final double activityMultiplier;
+  final String goal;
 
   ProfileState({
     this.age = 25,
@@ -17,6 +17,7 @@ class ProfileState {
     this.weight = 70,
     this.gender = 'Male',
     this.activityMultiplier = 1.2,
+    this.goal = 'Maintain',
   });
 
   ProfileState copyWith({
@@ -25,6 +26,7 @@ class ProfileState {
     double? weight,
     String? gender,
     double? activityMultiplier,
+    String? goal,
   }) {
     return ProfileState(
       age: age ?? this.age,
@@ -32,6 +34,7 @@ class ProfileState {
       weight: weight ?? this.weight,
       gender: gender ?? this.gender,
       activityMultiplier: activityMultiplier ?? this.activityMultiplier,
+      goal: goal ?? this.goal,
     );
   }
 
@@ -41,6 +44,26 @@ class ProfileState {
   }
 
   double get maintenanceCalories => bmr * activityMultiplier;
+
+  double get targetCalories {
+    if (goal == 'Lose Fat') return maintenanceCalories - 500;
+    if (goal == 'Build Muscle') return maintenanceCalories + 300;
+    return maintenanceCalories;
+  }
+
+  double get hydrationTarget {
+    double baseLiters = weight * 0.035;
+    double activityBump = (activityMultiplier - 1.2) * 1.5;
+    return baseLiters + activityBump;
+  }
+
+  int get proteinTarget => (weight * 1.8).toInt();
+  int get fatsTarget => ((targetCalories * 0.25) / 9).toInt();
+  int get carbsTarget {
+    double remainingCals =
+        targetCalories - (proteinTarget * 4) - (fatsTarget * 9);
+    return (remainingCals / 4).toInt();
+  }
 
   double get bmi {
     if (height <= 0) return 0;
@@ -62,7 +85,7 @@ class ProfileState {
     double heightInMeters = height / 100;
     double minWeight = 18.5 * pow(heightInMeters, 2);
     double maxWeight = 24.9 * pow(heightInMeters, 2);
-    return '${minWeight.toStringAsFixed(1)} - ${maxWeight.toStringAsFixed(1)} kg';
+    return '${minWeight.toStringAsFixed(1)}-${maxWeight.toStringAsFixed(1)} kg';
   }
 }
 
@@ -77,6 +100,7 @@ class ProfileNotifier extends Notifier<ProfileState> {
     double? weight,
     String? gender,
     double? activity,
+    String? goal,
   }) {
     state = state.copyWith(
       age: age,
@@ -84,6 +108,7 @@ class ProfileNotifier extends Notifier<ProfileState> {
       weight: weight,
       gender: gender,
       activityMultiplier: activity,
+      goal: goal,
     );
   }
 }
@@ -111,12 +136,24 @@ class ProfileScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // CARD 1: DAILY TARGETS
+          const Text(
+            'Daily Targets',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: const Color(0xFF1E1E1E),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.grey.shade800),
+              border: Border.all(
+                color: const Color(0xFF00E676).withOpacity(0.5),
+              ),
             ),
             child: Column(
               children: [
@@ -125,12 +162,12 @@ class ProfileScreen extends ConsumerWidget {
                   children: [
                     _StatColumn(
                       context,
-                      'Maintenance',
-                      '${profile.maintenanceCalories.toInt()} kcal',
+                      'Target Calories',
+                      '${profile.targetCalories.toInt()} kcal',
                       const Color(0xFF00E676),
-                      infoTitle: 'Maintenance Calories (TDEE)',
+                      infoTitle: 'Calorie Target',
                       infoDesc:
-                          'Total Daily Energy Expenditure. This is the exact number of calories your body burns in a 24-hour period, including your physical activity. Eat this amount to stay exactly the same weight.',
+                          'Based on your selected goal. This is your total daily maintenance (TDEE) adjusted for fat loss or muscle gain.',
                     ),
                     Container(
                       width: 1,
@@ -139,12 +176,12 @@ class ProfileScreen extends ConsumerWidget {
                     ),
                     _StatColumn(
                       context,
-                      'Base Burn',
-                      '${profile.bmr.toInt()} kcal',
-                      Colors.white,
-                      infoTitle: 'Basal Metabolic Rate (BMR)',
+                      'Hydration',
+                      '${profile.hydrationTarget.toStringAsFixed(1)} L',
+                      Colors.lightBlueAccent,
+                      infoTitle: 'Hydration Target',
                       infoDesc:
-                          'The calories your body burns just keeping you alive (organs, breathing, brain function). This is what you would burn if you stayed in bed all day and did absolutely nothing.',
+                          'Calculated using 35ml per kg of bodyweight, dynamically increased based on your chosen physical activity level.',
                     ),
                   ],
                 ),
@@ -153,60 +190,133 @@ class ProfileScreen extends ConsumerWidget {
                   child: Divider(color: Colors.white12),
                 ),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    _StatColumn(
+                    _MacroColumn(
                       context,
-                      'BMI (${profile.bmiCategory})',
-                      profile.bmi.toStringAsFixed(1),
-                      bmiColor,
-                      infoTitle: 'Body Mass Index (BMI)',
-                      infoDesc:
-                          'A general mathematical ratio of your height to your weight. While it doesn\'t account for muscle mass, it is a universally used baseline for assessing healthy weight brackets.',
+                      'Protein',
+                      '${profile.proteinTarget}g',
+                      Colors.pinkAccent,
+                      'Protects and builds muscle mass. Set to a highly optimal 1.8g per kg of body weight.',
                     ),
-                    Container(
-                      width: 1,
-                      height: 40,
-                      color: Colors.grey.shade800,
-                    ),
-                    _StatColumn(
+                    _MacroColumn(
                       context,
-                      'Healthy Range',
-                      profile.idealWeightRange,
-                      Colors.white70,
-                      infoTitle: 'Ideal Weight Range',
-                      infoDesc:
-                          'The weight bracket for your specific height that keeps your BMI in the "Normal" category (18.5 - 24.9).',
+                      'Carbs',
+                      '${profile.carbsTarget}g',
+                      Colors.amberAccent,
+                      'Your body\'s preferred energy source. Calculated using your remaining calories after Protein and Fats are set.',
+                    ),
+                    _MacroColumn(
+                      context,
+                      'Fats',
+                      '${profile.fatsTarget}g',
+                      Colors.purpleAccent,
+                      'Crucial for hormone regulation and brain health. Set to safely make up 25% of your total calories.',
                     ),
                   ],
                 ),
               ],
             ),
           ),
+          const SizedBox(height: 24),
+
+          // CARD 2: BODY DIAGNOSTICS (Now fully matching theme!)
+          const Text(
+            'Body Diagnostics',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E1E1E),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: const Color(0xFF00E676).withOpacity(0.5),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: _StatColumn(
+                    context,
+                    'BMR',
+                    '${profile.bmr.toInt()}',
+                    Colors.white70,
+                    infoTitle: 'Basal Metabolic Rate (BMR)',
+                    infoDesc:
+                        'The calories your body burns just keeping you alive (organs, breathing). What you burn if you stayed in bed all day.',
+                  ),
+                ),
+                Expanded(
+                  child: _StatColumn(
+                    context,
+                    'BMI (${profile.bmiCategory})',
+                    profile.bmi.toStringAsFixed(1),
+                    bmiColor,
+                    infoTitle: 'Body Mass Index (BMI)',
+                    infoDesc:
+                        'A ratio of your height to your weight. While it doesn\'t account for muscle mass, it is a baseline for assessing healthy brackets.',
+                  ),
+                ),
+                Expanded(
+                  child: _StatColumn(
+                    context,
+                    'Healthy Range',
+                    profile.idealWeightRange,
+                    Colors.white70,
+                    infoTitle: 'Ideal Weight Range',
+                    infoDesc:
+                        'The weight bracket for your specific height that keeps your BMI in the "Normal" category (18.5 - 24.9).',
+                  ),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 30),
 
-          // ... (The rest of the form remains exactly the same)
+          // Goal Selection (Overflow and spacing fixed)
           const Text(
-            'Gender',
+            'Primary Goal',
             style: TextStyle(color: Colors.grey, fontSize: 14),
           ),
           const SizedBox(height: 8),
-          SegmentedButton<String>(
-            segments: const [
-              ButtonSegment(value: 'Male', label: Text('Male')),
-              ButtonSegment(value: 'Female', label: Text('Female')),
-            ],
-            selected: {profile.gender},
-            onSelectionChanged: (set) =>
-                notifier.updateField(gender: set.first),
-            style: SegmentedButton.styleFrom(
-              backgroundColor: Colors.transparent,
-              selectedForegroundColor: Colors.black,
-              selectedBackgroundColor: const Color(0xFF00E676),
+          SizedBox(
+            width: double.infinity,
+            child: SegmentedButton<String>(
+              showSelectedIcon: false, // Fixes the squishing/overflow bug!
+              segments: const [
+                ButtonSegment(
+                  value: 'Lose Fat',
+                  label: Text('Lose Fat', style: TextStyle(fontSize: 13)),
+                ),
+                ButtonSegment(
+                  value: 'Maintain',
+                  label: Text('Maintain', style: TextStyle(fontSize: 13)),
+                ),
+                ButtonSegment(
+                  value: 'Build Muscle',
+                  label: Text('Muscle', style: TextStyle(fontSize: 13)),
+                ),
+              ],
+              selected: {profile.goal},
+              onSelectionChanged: (set) =>
+                  notifier.updateField(goal: set.first),
+              style: SegmentedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                selectedForegroundColor: Colors.black,
+                selectedBackgroundColor: const Color(0xFF00E676),
+              ),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
 
+          // Compact Inputs: Row 1
           Row(
             children: [
               Expanded(
@@ -216,65 +326,50 @@ class ProfileScreen extends ConsumerWidget {
               ),
               const SizedBox(width: 16),
               Expanded(
+                child: _GenderDropdown(
+                  profile.gender,
+                  (val) => notifier.updateField(gender: val),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Compact Inputs: Row 2
+          Row(
+            children: [
+              Expanded(
                 child: _MetricInput('Weight (kg)', profile.weight.toString(), (
                   val,
                 ) {
                   notifier.updateField(weight: double.tryParse(val) ?? 0);
                 }),
               ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _MetricInput('Height (cm)', profile.height.toString(), (
+                  val,
+                ) {
+                  notifier.updateField(height: double.tryParse(val) ?? 0);
+                }),
+              ),
             ],
           ),
           const SizedBox(height: 16),
-          _MetricInput('Height (cm)', profile.height.toString(), (val) {
-            notifier.updateField(height: double.tryParse(val) ?? 0);
-          }),
-          const SizedBox(height: 20),
 
-          const Text(
-            'Activity Level',
-            style: TextStyle(color: Colors.grey, fontSize: 14),
+          // Compact Inputs: Activity Level
+          _ActivityDropdown(
+            profile.activityMultiplier,
+            (val) => notifier.updateField(activity: val),
           ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1E1E1E),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<double>(
-                value: profile.activityMultiplier,
-                isExpanded: true,
-                dropdownColor: const Color(0xFF1E1E1E),
-                items: const [
-                  DropdownMenuItem(
-                    value: 1.2,
-                    child: Text('Sedentary (Little to no exercise)'),
-                  ),
-                  DropdownMenuItem(
-                    value: 1.375,
-                    child: Text('Lightly Active (1-3 days/week)'),
-                  ),
-                  DropdownMenuItem(
-                    value: 1.55,
-                    child: Text('Moderately Active (3-5 days/week)'),
-                  ),
-                  DropdownMenuItem(
-                    value: 1.725,
-                    child: Text('Very Active (6-7 days/week)'),
-                  ),
-                ],
-                onChanged: (val) => notifier.updateField(activity: val),
-              ),
-            ),
-          ),
+
           const SizedBox(height: 40),
         ],
       ),
     );
   }
 
-  // UPDATED Helper widget for the Hero Card (Now with Info Icon support)
+  // UI Helpers (Stat Columns & Inputs)
   Widget _StatColumn(
     BuildContext context,
     String label,
@@ -287,13 +382,15 @@ class ProfileScreen extends ConsumerWidget {
       children: [
         Row(
           mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
               label,
-              style: const TextStyle(color: Colors.grey, fontSize: 12),
+              style: const TextStyle(color: Colors.grey, fontSize: 11),
+              textAlign: TextAlign.center,
             ),
             if (infoTitle != null && infoDesc != null) ...[
-              const SizedBox(width: 6),
+              const SizedBox(width: 4),
               GestureDetector(
                 onTap: () => _showInfoSheet(context, infoTitle, infoDesc),
                 child: const Icon(
@@ -305,20 +402,55 @@ class ProfileScreen extends ConsumerWidget {
             ],
           ],
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 6),
         Text(
           value,
           style: TextStyle(
-            fontSize: 20,
+            fontSize: 18,
             fontWeight: FontWeight.bold,
             color: valueColor,
           ),
+          textAlign: TextAlign.center,
         ),
       ],
     );
   }
 
-  // NEW: Premium Bottom Sheet for Definitions
+  Widget _MacroColumn(
+    BuildContext context,
+    String label,
+    String value,
+    Color color,
+    String desc,
+  ) {
+    return GestureDetector(
+      onTap: () => _showInfoSheet(context, '$label Target', desc),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Text(
+                label,
+                style: const TextStyle(color: Colors.grey, fontSize: 12),
+              ),
+              const SizedBox(width: 4),
+              const Icon(Icons.info_outline, size: 12, color: Colors.grey),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showInfoSheet(BuildContext context, String title, String description) {
     showModalBottomSheet(
       context: context,
@@ -385,21 +517,68 @@ class ProfileScreen extends ConsumerWidget {
       initialValue: initialValue,
       keyboardType: TextInputType.number,
       onChanged: onChanged,
-      style: const TextStyle(fontSize: 18),
+      style: const TextStyle(fontSize: 16),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: Colors.grey),
+        labelStyle: const TextStyle(color: Colors.grey, fontSize: 14),
         filled: true,
         fillColor: const Color(0xFF1E1E1E),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
         ),
-        focusedBorder: OutlineInputBorder(
+      ),
+    );
+  }
+
+  Widget _GenderDropdown(String value, Function(String) onChanged) {
+    return DropdownButtonFormField<String>(
+      value: value,
+      decoration: InputDecoration(
+        labelText: 'Gender',
+        labelStyle: const TextStyle(color: Colors.grey, fontSize: 14),
+        filled: true,
+        fillColor: const Color(0xFF1E1E1E),
+        border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFF00E676)),
+          borderSide: BorderSide.none,
         ),
       ),
+      dropdownColor: const Color(0xFF1E1E1E),
+      items: const [
+        DropdownMenuItem(value: 'Male', child: Text('Male')),
+        DropdownMenuItem(value: 'Female', child: Text('Female')),
+      ],
+      onChanged: (val) {
+        if (val != null) onChanged(val);
+      },
+    );
+  }
+
+  Widget _ActivityDropdown(double value, Function(double) onChanged) {
+    return DropdownButtonFormField<double>(
+      value: value,
+      isExpanded: true,
+      decoration: InputDecoration(
+        labelText: 'Activity Level',
+        labelStyle: const TextStyle(color: Colors.grey, fontSize: 14),
+        filled: true,
+        fillColor: const Color(0xFF1E1E1E),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+      ),
+      dropdownColor: const Color(0xFF1E1E1E),
+      items: const [
+        DropdownMenuItem(value: 1.2, child: Text('Sedentary (Office job)')),
+        DropdownMenuItem(value: 1.375, child: Text('Light (1-3 days/wk)')),
+        DropdownMenuItem(value: 1.55, child: Text('Moderate (3-5 days/wk)')),
+        DropdownMenuItem(value: 1.725, child: Text('Active (6-7 days/wk)')),
+      ],
+      onChanged: (val) {
+        if (val != null) onChanged(val);
+      },
     );
   }
 }
