@@ -38,11 +38,30 @@ class DailyIntake {
 // --- 2. The Modern Riverpod Provider ---
 class IntakeNotifier extends Notifier<DailyIntake> {
   @override
-  DailyIntake build() => DailyIntake();
+  DailyIntake build() =>
+      DailyIntake(calories: 0, protein: 0, carbs: 0, fats: 0, waterLiters: 0);
 
-  // We can use this to add water from the button!
   void addWater(double amount) {
     state = state.copyWith(waterLiters: state.waterLiters + amount);
+  }
+
+  void addMeal(double cals, double pro, double carb, double fat) {
+    state = state.copyWith(
+      calories: state.calories + cals,
+      protein: state.protein + pro,
+      carbs: state.carbs + carb,
+      fats: state.fats + fat,
+    );
+  }
+
+  // NEW: Reverses the math when you delete a food!
+  void removeMeal(double cals, double pro, double carb, double fat) {
+    state = state.copyWith(
+      calories: (state.calories - cals).clamp(0.0, double.infinity),
+      protein: (state.protein - pro).clamp(0.0, double.infinity),
+      carbs: (state.carbs - carb).clamp(0.0, double.infinity),
+      fats: (state.fats - fat).clamp(0.0, double.infinity),
+    );
   }
 }
 
