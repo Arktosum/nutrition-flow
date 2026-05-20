@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'profile_screen.dart';
 
 void main() {
   runApp(const ProviderScope(child: NutritionFlowApp()));
@@ -66,12 +67,7 @@ class MainNavigationShell extends ConsumerWidget {
           textAlign: TextAlign.center,
         ),
       ),
-      const Center(
-        child: Text(
-          'Profile Setup\n(BMR Math Goes Here)',
-          textAlign: TextAlign.center,
-        ),
-      ),
+      const ProfileScreen()
     ];
 
     return Scaffold(
